@@ -41,16 +41,6 @@ const getMatchDetails = (dbObj) => {
   };
 };
 
-const getStatisticsOfPlayer = (dbObj) => {
-  return {
-    playerId: dbObj.player_id,
-    playerName: dbObj.player_name,
-    totalScore: dbObj.total_score,
-    totalFours: dbObj.total_fours,
-    totalSixes: total_sixes,
-  };
-};
-
 //1.RETURN LIST OF PLAYERS
 
 app.get("/players/", async (request, response) => {
@@ -67,11 +57,7 @@ app.get("/players/:playerId/", async (request, response) => {
   const getAPlayerQuery = `
     SELECT * FROM player_details WHERE player_id = ${playerId};`;
   const dbResponse = await db.get(getAPlayerQuery);
-  response.send(
-    dbResponse.map((eachObj) => {
-      getAllPlayers(eachObj);
-    })
-  );
+  response.send(getAllPlayers(dbResponse));
 });
 
 //3.UPDATE PLAYER DETAILS
@@ -80,7 +66,7 @@ app.put("/players/:playerId/", async (request, response) => {
   const { playerId } = request.params;
   const { playerName } = request.body;
   const updateDetailsQuery = `
-    UPDATE player_details SET player_name = ${playerName} WHERE player_id = ${playerId};`;
+    UPDATE player_details SET player_name = '${playerName}' WHERE player_id = ${playerId};`;
   await db.run(updateDetailsQuery);
   response.send("Player Details Updated");
 });
@@ -88,10 +74,11 @@ app.put("/players/:playerId/", async (request, response) => {
 //4.GET MATCH DETAILS
 
 app.get("/matches/:matchId/", async (request, response) => {
+  const { matchId } = request.params;
   const matchDetailsQuery = `
-    SELECT * FROM match_details ORDER BY match_id;`;
-  const dbResponse = await db.all(matchDetailsQuery);
-  response.send(dbResponse.map((eachMatch) => getMatchDetails(eachMatch)));
+    SELECT * FROM match_details WHERE match_id =${matchId};`;
+  const dbResponse = await db.get(matchDetailsQuery);
+  response.send(getMatchDetails(dbResponse));
 });
 
 //5.GET MATCHES OF A PLAYER
@@ -99,8 +86,8 @@ app.get("/matches/:matchId/", async (request, response) => {
 app.get("/players/:playerId/matches", async (request, response) => {
   const { playerId } = request.params;
   const specificMatchQuery = `
-        SELECT * FROM match_details INNER JOIN player_details 
-    ON match_details.match_id = player_details.match_id WHERE player_id = ${playerId};`;
+        SELECT * FROM match_details INNER JOIN player_match_score 
+    ON match_details.match_id = player_match_score.match_id WHERE player_match_score.player_id = ${playerId};`;
   const dbResponse = await db.all(specificMatchQuery);
   response.send(dbResponse.map((eachObj) => getMatchDetails(eachObj)));
 });
@@ -110,9 +97,9 @@ app.get("/players/:playerId/matches", async (request, response) => {
 app.get("/matches/:matchId/players", async (request, response) => {
   const { matchId } = request.params;
   const playersInMatchQuery = `
-      SELECT * FROM player_details INNER JOIN match_details 
-      ON player_details.match_id = match_details.match_id;`;
-  const dbResponse = await db.get(playersInMatchQuery);
+      SELECT * FROM player_details INNER JOIN player_match_score 
+      ON player_details.player_id = player_match_score.player_id WHERE match_id = ${matchId};`;
+  const dbResponse = await db.all(playersInMatchQuery);
   response.send(dbResponse.map((eachObj) => getAllPlayers(eachObj)));
 });
 
@@ -121,11 +108,11 @@ app.get("/matches/:matchId/players", async (request, response) => {
 app.get("/players/:playerId/playerScores", async (request, response) => {
   const { playerId } = request.params;
   const playerStatisticsQuery = `
-    SELECT * FROM player_match_score INNER JOIN player_details 
+    SELECT player_details.player_id as playerId, player_details.player_name as playerName, sum(player_match_score.score) as totalScore, sum(player_match_score.fours) as totalFours, sum(player_match_score.sixes) as totalSixes FROM player_match_score INNER JOIN player_details 
     ON player_match_score.player_id = player_details.player_id
-    WHERE player_id = ${playerId};`;
+    WHERE player_details.player_id = ${playerId};`;
   const dbResponse = await db.get(playerStatisticsQuery);
-  response.send(dbResponse.map((eachObj) => getStatisticsOfPlayer(eachObj)));
+  response.send(dbResponse);
 });
 
 module.exports = app;
